@@ -74,7 +74,9 @@ const manifoldMemberFunctions = [
   'smoothOut',
   'refine',
   'refineToLength',
+  'refineToTolerance',
   'setProperties',
+  'setTolerance',
   'asOriginal',
   'trimByPlane',
   'split',
@@ -521,7 +523,7 @@ function addMesh(
   }
   log(`Bounding Box: X = ${size[0].toLocaleString()} mm, Y = ${
       size[1].toLocaleString()} mm, Z = ${size[2].toLocaleString()} mm`);
-  const volume = Math.round(manifold.getProperties().volume / 10);
+  const volume = Math.round(manifold.volume() / 10);
   log(`Genus: ${manifold.genus().toLocaleString()}, Volume: ${
       (volume / 100).toLocaleString()} cm^3`);
 
@@ -617,7 +619,8 @@ function createNodeFromCache(
     } else {
       const cachedNode = cachedNodes.get(backupMaterial);
       if (cachedNode == null) {
-        const [oldBackupMaterial, oldNode] = cachedNodes.entries().next().value;
+        const [oldBackupMaterial, oldNode] =
+            cachedNodes.entries().next().value!;
         cloneNodeNewMaterial(
             doc, node, oldNode, getCachedMaterial(doc, backupMaterial),
             getCachedMaterial(doc, oldBackupMaterial));

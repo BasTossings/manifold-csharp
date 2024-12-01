@@ -14,44 +14,47 @@
 
 #include <algorithm>
 
-#include "cross_section.h"
-#include "manifold.h"
+#include "../src/tri_dist.h"
+#include "manifold/manifold.h"
 #include "samples.h"
 #include "test.h"
-#include "tri_dist.h"
 
 using namespace manifold;
 
 // Check if the mesh remains convex after adding new faces
-bool isMeshConvex(manifold::Manifold hullManifold, double epsilon = 0.0000001) {
+bool isMeshConvex(Manifold hullManifold, double epsilon = 0.0000001) {
   // Get the mesh from the manifold
-  manifold::Mesh mesh = hullManifold.GetMesh();
+  MeshGL64 mesh = hullManifold.GetMeshGL64();
 
-  const auto &vertPos = mesh.vertPos;
+  const auto numTri = mesh.NumTri();
+  const auto numVert = mesh.NumVert();
+  const auto numProp = mesh.numProp;
 
   // Iterate over each triangle
-  for (const auto &tri : mesh.triVerts) {
+  for (size_t t = 0; t < numTri; ++t) {
     // Get the vertices of the triangle
-    glm::vec3 v0 = vertPos[tri[0]];
-    glm::vec3 v1 = vertPos[tri[1]];
-    glm::vec3 v2 = vertPos[tri[2]];
+    auto tri = mesh.GetTriVerts(t);
+    vec3 v0 = mesh.GetVertPos(tri[0]);
+    vec3 v1 = mesh.GetVertPos(tri[1]);
+    vec3 v2 = mesh.GetVertPos(tri[2]);
 
     // Compute the normal of the triangle
-    glm::vec3 normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+    vec3 normal = la::normalize(la::cross(v1 - v0, v2 - v0));
 
     // Check all other vertices
-    for (int i = 0; i < (int)vertPos.size(); ++i) {
-      if (i == tri[0] || i == tri[2] || i == tri[3])
+    for (size_t i = 0; i < numVert; ++i) {
+      if (i == tri[0] || i == tri[1] || i == tri[2])
         continue;  // Skip vertices of the current triangle
 
       // Get the vertex
-      glm::vec3 v = vertPos[i];
+      vec3 v = mesh.GetVertPos(i);
 
       // Compute the signed distance from the plane
-      double distance = glm::dot(normal, v - v0);
+      double distance = la::dot(normal, v - v0);
 
       // If any vertex lies on the opposite side of the normal direction
       if (distance > epsilon) {
+        std::cout << distance << std::endl;
         // The manifold is not convex
         return false;
       }
@@ -63,10 +66,10 @@ bool isMeshConvex(manifold::Manifold hullManifold, double epsilon = 0.0000001) {
 }
 
 TEST(Hull, Tictac) {
-  const float tictacRad = 100;
-  const float tictacHeight = 500;
-  const int tictacSeg = 1000;
-  const float tictacMid = tictacHeight - 2 * tictacRad;
+  const double tictacRad = 100;
+  const double tictacHeight = 500;
+  const int tictacSeg = 500;
+  const double tictacMid = tictacHeight - 2 * tictacRad;
   const auto sphere = Manifold::Sphere(tictacRad, tictacSeg);
   const std::vector<Manifold> spheres{sphere,
                                       sphere.Translate({0, 0, tictacMid})};
@@ -74,46 +77,36 @@ TEST(Hull, Tictac) {
 
 #ifdef MANIFOLD_EXPORT
   if (options.exportModels) {
-    ExportMesh("tictac_hull.glb", tictac.GetMesh(), {});
+    ExportMesh("tictac_hull.glb", tictac.GetMeshGL(), {});
   }
 #endif
 
-  EXPECT_EQ(sphere.NumVert() + tictacSeg, tictac.NumVert());
+  EXPECT_NEAR(sphere.NumVert() + tictacSeg, tictac.NumVert(), 1);
 }
-
-#ifdef MANIFOLD_EXPORT
-TEST(Hull, Fail) {
-  Manifold body = ReadMesh("hull-body.glb");
-  Manifold mask = ReadMesh("hull-mask.glb");
-  Manifold ret = body - mask;
-  MeshGL mesh = ret.GetMesh();
-}
-#endif
 
 TEST(Hull, Hollow) {
   auto sphere = Manifold::Sphere(100, 360);
   auto hollow = sphere - sphere.Scale({0.8, 0.8, 0.8});
-  const float sphere_vol = sphere.GetProperties().volume;
-  EXPECT_FLOAT_EQ(hollow.Hull().GetProperties().volume, sphere_vol);
+  const double sphere_vol = sphere.Volume();
+  EXPECT_FLOAT_EQ(hollow.Hull().Volume(), sphere_vol);
 }
 
 TEST(Hull, Cube) {
-  std::vector<glm::vec3> cubePts = {
+  std::vector<vec3> cubePts = {
       {0, 0, 0},       {1, 0, 0},   {0, 1, 0},      {0, 0, 1},  // corners
       {1, 1, 0},       {0, 1, 1},   {1, 0, 1},      {1, 1, 1},  // corners
       {0.5, 0.5, 0.5}, {0.5, 0, 0}, {0.5, 0.7, 0.2}  // internal points
   };
   auto cube = Manifold::Hull(cubePts);
-  EXPECT_FLOAT_EQ(cube.GetProperties().volume, 1);
+  EXPECT_FLOAT_EQ(cube.Volume(), 1);
 }
 
 TEST(Hull, Empty) {
-  const std::vector<glm::vec3> tooFew{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
-  EXPECT_TRUE(Manifold::Hull(tooFew).IsEmpty());
+  const std::vector<vec3> tooFew{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+  EXPECT_TRUE(Manifold::Hull(tooFew).AsOriginal().IsEmpty());
 
-  const std::vector<glm::vec3> coplanar{
-      {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0}};
-  EXPECT_TRUE(Manifold::Hull(coplanar).IsEmpty());
+  const std::vector<vec3> coplanar{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0}};
+  EXPECT_TRUE(Manifold::Hull(coplanar).AsOriginal().IsEmpty());
 }
 
 TEST(Hull, MengerSponge) {
@@ -121,22 +114,21 @@ TEST(Hull, MengerSponge) {
   sponge = sponge.Rotate(10, 20, 30);
   Manifold spongeHull = sponge.Hull();
   EXPECT_EQ(spongeHull.NumTri(), 12);
-  EXPECT_FLOAT_EQ(spongeHull.GetProperties().surfaceArea, 6);
-  EXPECT_FLOAT_EQ(spongeHull.GetProperties().volume, 1);
+  EXPECT_FLOAT_EQ(spongeHull.SurfaceArea(), 6);
+  EXPECT_FLOAT_EQ(spongeHull.Volume(), 1);
 }
 
 TEST(Hull, Sphere) {
   Manifold sphere = Manifold::Sphere(1, 1500);
-  sphere = sphere.Translate(glm::vec3(0.5));
+  sphere = sphere.Translate(vec3(0.5));
   Manifold sphereHull = sphere.Hull();
   EXPECT_EQ(sphereHull.NumTri(), sphere.NumTri());
-  EXPECT_FLOAT_EQ(sphereHull.GetProperties().volume,
-                  sphere.GetProperties().volume);
+  EXPECT_FLOAT_EQ(sphereHull.Volume(), sphere.Volume());
 }
 
 TEST(Hull, FailingTest1) {
   // 39202.stl
-  const std::vector<glm::vec3> hullPts = {
+  const std::vector<vec3> hullPts = {
       {-24.983196259f, -43.272167206f, 52.710712433f},
       {-25.0f, -12.7726717f, 49.907142639f},
       {-23.016393661f, 39.865562439f, 79.083930969f},
@@ -160,15 +152,15 @@ TEST(Hull, FailingTest1) {
   auto hull = Manifold::Hull(hullPts);
 #ifdef MANIFOLD_EXPORT
   if (options.exportModels) {
-    ExportMesh("failing_test1.glb", hull.GetMesh(), {});
+    ExportMesh("failing_test1.glb", hull.GetMeshGL(), {});
   }
 #endif
-  EXPECT_TRUE(isMeshConvex(hull, 8.99628e-06));
+  EXPECT_TRUE(isMeshConvex(hull, 1.09375e-05));
 }
 
 TEST(Hull, FailingTest2) {
   // 1750623.stl
-  const std::vector<glm::vec3> hullPts = {
+  const std::vector<vec3> hullPts = {
       {174.17001343f, -12.022000313f, 29.562002182f},
       {174.51400757f, -10.858000755f, -3.3340001106f},
       {187.50801086f, 22.826000214f, 23.486001968f},
@@ -193,8 +185,33 @@ TEST(Hull, FailingTest2) {
   auto hull = Manifold::Hull(hullPts);
 #ifdef MANIFOLD_EXPORT
   if (options.exportModels) {
-    ExportMesh("failing_test2.glb", hull.GetMesh(), {});
+    ExportMesh("failing_test2.glb", hull.GetMeshGL(), {});
   }
 #endif
   EXPECT_TRUE(isMeshConvex(hull, 2.13966e-05));
+}
+
+TEST(Hull, DisabledFaceTest) {
+  // 101213.stl
+  const std::vector<vec3> hullPts = {
+      {65.398902893, 58.303115845, 58.765388489},
+      {42.147319794, 44.512584686, 75.703102112},
+      {89.208251953, 97.092460632, 41.632453918},
+      {69.860748291, 69.860748291, 56.492958069},
+      {45.375354767, 39.067985535, 64.844772339},
+      {26.555616379, 18.671405792, 81.067504883},
+      {88.179382324, 81.083595276, 43.981628418},
+      {51.823883057, 50.247039795, 70.359062195},
+      {58.489616394, 72.681190491, 51.274829865},
+      {110, 10, 65},
+      {29.590316772, 20.917686462, 73.143547058},
+      {101.61526489, 98.461585999, 30.909877777}};
+  auto hull = Manifold::Hull(hullPts);
+#ifdef MANIFOLD_EXPORT
+  if (options.exportModels) {
+    ExportMesh("disabledFaceTest.glb", hull.GetMeshGL(), {});
+  }
+#endif
+  EXPECT_TRUE(!hull.IsEmpty());
+  EXPECT_TRUE(isMeshConvex(hull));
 }

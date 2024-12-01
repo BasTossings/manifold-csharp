@@ -39,10 +39,11 @@ async function runExample(name: string) {
     }
     const {mesh} = readMesh(docMesh)!;
     const manifold = new module.Manifold(mesh as Mesh);
-    const prop = manifold.getProperties();
+    const volume = manifold.volume();
+    const surfaceArea = manifold.surfaceArea();
     const genus = manifold.genus();
     manifold.delete();
-    return {...prop, genus};
+    return {volume, surfaceArea, genus};
   }
   assert.ok(false);
 }
@@ -57,6 +58,13 @@ suite('Examples', () => {
     expect(result.genus).to.equal(5, 'Genus');
     expect(result.volume).to.be.closeTo(203164, 1, 'Volume');
     expect(result.surfaceArea).to.be.closeTo(62046, 1, 'Surface Area');
+  });
+
+  test('Auger', async () => {
+    const result = await runExample('Auger');
+    expect(result.genus).to.equal(0, 'Genus');
+    expect(result.volume).to.be.closeTo(16842, 1, 'Volume');
+    expect(result.surfaceArea).to.be.closeTo(10519, 1, 'Surface Area');
   });
 
   test('Tetrahedron Puzzle', async () => {
@@ -111,7 +119,7 @@ suite('Examples', () => {
   test('Gyroid Module', async () => {
     const result = await runExample('Gyroid Module');
     expect(result.genus).to.equal(15, 'Genus');
-    expect(result.volume).to.be.closeTo(4167, 1, 'Volume');
-    expect(result.surfaceArea).to.be.closeTo(5642, 1, 'Surface Area');
+    expect(result.volume).to.be.closeTo(4175, 1, 'Volume');
+    expect(result.surfaceArea).to.be.closeTo(5645, 1, 'Surface Area');
   });
 });
