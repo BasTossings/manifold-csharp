@@ -28,7 +28,7 @@ jobs:
           $env:PATH = "$env:VCPKG_ROOT;$env:PATH"
           vcpkg install assimp
           vcpkg install tbb
-					vcpkg install clipper2
+          vcpkg install clipper2
 
       # Build release
       - name: Build
