@@ -124,8 +124,7 @@ CMakeSettings.json
 # PyCharm
 .idea
 
-# Visual Studio
-.vs# Temporary files
+# Temporary files
 *~
 \#*\#
 .\#*
