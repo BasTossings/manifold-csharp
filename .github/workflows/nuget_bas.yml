@@ -1,4 +1,4 @@
-name: nuget
+name: nuget_bas
 
 on:
   push:
